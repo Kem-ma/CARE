@@ -1,0 +1,12 @@
+*.swp
+__pycache__
+.pytest_cache
+.venv
+*.egg-info
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+# Backend is kept local for now; remove this line when you are ready to publish it
+backend/
