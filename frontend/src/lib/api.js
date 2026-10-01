@@ -19,6 +19,11 @@ const SERVER_MESSAGES = {
   'Another admin already acknowledged this report': 'err.alreadyAck',
   'A case note is required to resolve a report': 'err.noteRequired',
   'This report was just updated by someone else. Refresh and try again.': 'err.conflict',
+  'This report can no longer be changed': 'err.amendClosed',
+  'Acknowledge this report before changing its status': 'err.ackFirst',
+  'Waiting for another group to acknowledge this report': 'err.waitingGroups',
+  'Report not found': 'err.reportNotFound',
+  "A voice description can't be edited. Add information instead.": 'err.voiceNoEdit',
 };
 
 function errorFor(status, data) {
@@ -74,6 +79,14 @@ export const submitReport = (body, signedIn) =>
 
 export const trackReport = (ref) => request(`/reports/track/${encodeURIComponent(ref.trim())}`);
 export const myReports = () => request('/reports/mine', { auth: 'citizen' });
+export const ownReport = (id) => request(`/reports/mine/${encodeURIComponent(id)}`, { auth: 'citizen' });
+
+// Edit, add to or withdraw a report in the first minutes. `change` is { action: 'edit' | 'add' | 'withdraw', ... }.
+// A signed-in reporter is known by their token; an anonymous one proves it with the editToken from submission.
+export const amendReport = (id, change, editToken) =>
+  editToken
+    ? request(`/reports/anonymous/${encodeURIComponent(id)}`, { method: 'PATCH', body: { ...change, editToken } })
+    : request(`/reports/mine/${encodeURIComponent(id)}`, { method: 'PATCH', body: change, auth: 'citizen' });
 
 // The server returns an S3 presigned POST: { url, fields }. Fields go first, the file last.
 export async function uploadEvidence(upload, blob, contentType) {

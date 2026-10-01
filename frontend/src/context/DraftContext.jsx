@@ -19,6 +19,9 @@ const DraftContext = createContext(null);
 
 export function DraftProvider({ children }) {
   const [draft, setDraft] = useState(emptyDraft);
+  // The report just sent, so it can be changed for a few minutes: { reportId, editToken, deadline, view }.
+  // Like the draft it lives only in memory, so an anonymous report's edit token never touches the device.
+  const [recent, setRecent] = useState(null);
 
   const update = useCallback((patch) => setDraft((current) => ({ ...current, ...patch })), []);
 
@@ -30,7 +33,7 @@ export function DraftProvider({ children }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ draft, update, reset }), [draft, update, reset]);
+  const value = useMemo(() => ({ draft, update, reset, recent, setRecent }), [draft, update, reset, recent]);
   return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 }
 

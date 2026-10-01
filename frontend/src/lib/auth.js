@@ -65,6 +65,28 @@ export function resendCode(email) {
   });
 }
 
+// ----- forgotten password (citizens) -----
+
+// Cognito emails a code to the account's verified address.
+export function forgotPassword(email) {
+  return new Promise((resolve, reject) => {
+    makeUser('citizen', email).forgotPassword({
+      onSuccess: resolve,
+      onFailure: reject,
+      inputVerificationCode: resolve,
+    });
+  });
+}
+
+export function confirmNewPassword(email, code, newPassword) {
+  return new Promise((resolve, reject) => {
+    makeUser('citizen', email).confirmPassword(code.trim(), newPassword, {
+      onSuccess: resolve,
+      onFailure: reject,
+    });
+  });
+}
+
 // ----- sign-in (both pools) -----
 // Resolves { status: 'ok' } | { status: 'new-password', user } | { status: 'totp', user }
 

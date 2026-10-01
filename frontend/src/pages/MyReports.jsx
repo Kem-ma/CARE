@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LockIcon } from '../components/icons';
 import { Progress, StatusPill } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { mmss, useCountdown } from '../hooks/useCountdown';
 import { typeName, useI18n } from '../i18n';
 import { myReports } from '../lib/api';
 import { errorText } from '../lib/errors';
@@ -36,17 +37,31 @@ function TrackingLookup() {
   );
 }
 
+// "Change or withdraw (4:12 left)" while the report can still be changed
+function ChangeLink({ report, loadedAt }) {
+  const { t } = useI18n();
+  const secondsLeft = useCountdown(report.secondsLeft > 0 ? loadedAt + report.secondsLeft * 1000 : null);
+  if (secondsLeft <= 0) return null;
+  return (
+    <Link className="btn small secondary" style={{ gridColumn: '1 / -1', justifySelf: 'start' }} to={`/report/manage/${encodeURIComponent(report.reportId)}`}>
+      {report.status === 'SUBMITTED' ? t('mine.change') : t('mine.addMore')} ({mmss(secondsLeft)})
+    </Link>
+  );
+}
+
 export default function MyReports() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { t, lang } = useI18n();
   const [reports, setReports] = useState(null);
+  const [loadedAt, setLoadedAt] = useState(0);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
       const data = await myReports();
+      setLoadedAt(Date.now());
       setReports(data.reports);
     } catch (err) {
       setError(err);
@@ -107,6 +122,7 @@ export default function MyReports() {
             <StatusPill status={report.status} />
             <Progress status={report.status} />
             <div className="meta" style={{ gridColumn: '1 / -1' }}>{t('mine.code', { code: report.trackingRef })}</div>
+            <ChangeLink report={report} loadedAt={loadedAt} />
           </article>
         ))}
       </div>

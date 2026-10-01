@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { PhoneIcon } from '../components/icons';
 import { EMERGENCY_NUMBER } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../i18n';
@@ -30,7 +31,9 @@ export default function Landing() {
         </div>
         <aside className="emergency">
           <div className="k">{t('landing.emergencyTitle')}</div>
-          <div className="big">{t('landing.call', { n: EMERGENCY_NUMBER })}</div>
+          <a className="big call" href={`tel:${EMERGENCY_NUMBER}`} aria-label={t('landing.callAria', { n: EMERGENCY_NUMBER })}>
+            <PhoneIcon /> {t('landing.call', { n: EMERGENCY_NUMBER })}
+          </a>
           <p>{t('landing.emergencyText')}</p>
         </aside>
       </section>

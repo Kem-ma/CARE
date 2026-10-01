@@ -4,6 +4,7 @@ import { CheckIcon, InfoIcon } from '../components/icons';
 import { Callout } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDraft } from '../context/DraftContext';
+import { mmss, useCountdown } from '../hooks/useCountdown';
 import { typeName, useI18n } from '../i18n';
 import { submitReport, uploadEvidence } from '../lib/api';
 import { errorText } from '../lib/errors';
@@ -14,7 +15,7 @@ import { getLocation } from '../lib/location';
 export default function Preview() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { draft, update, reset } = useDraft();
+  const { draft, update, reset, recent, setRecent } = useDraft();
   const { t } = useI18n();
   const [phase, setPhase] = useState('review');
   const [error, setError] = useState(null); // kept as an error object so it re-translates
@@ -22,6 +23,8 @@ export default function Preview() {
   const [uploads, setUploads] = useState({});
   const [copied, setCopied] = useState(false);
   const evidence = useRef(null); // the files to upload, kept apart from the draft so a retry still has them
+  const sent = useRef(null); // what was sent, so it can be changed for a few minutes afterwards
+  const secondsLeft = useCountdown(phase === 'done' && recent?.reportId === result?.reportId ? recent?.deadline : null);
 
   // Nothing to review (for example after a page refresh): back to the form
   useEffect(() => {
@@ -53,6 +56,7 @@ export default function Preview() {
     }
     setError(null);
     setPhase('done');
+    setRecent(sent.current);
     reset(); // the report is on its way; don't leave a copy around to be sent twice
   }
 
@@ -88,6 +92,29 @@ export default function Preview() {
 
     try {
       const created = await submitReport(body, Boolean(user));
+      const windowSeconds = created.editWindowSeconds ?? 300;
+      sent.current = {
+        reportId: created.reportId,
+        editToken: created.editToken || null,
+        deadline: Date.now() + windowSeconds * 1000,
+        // the same shape the server returns for a signed-in reporter's own report
+        view: {
+          reportId: created.reportId,
+          trackingRef: created.trackingRef,
+          incidentType: body.incidentType,
+          status: 'SUBMITTED',
+          createdAt: Math.floor(Date.now() / 1000),
+          incidentLocation: body.incidentLocation,
+          descriptionType: body.descriptionType,
+          descriptionText: body.descriptionText ?? null,
+          guardianContact: body.guardianContact ?? null,
+          additions: [],
+          withdrawReason: null,
+          secondsLeft: windowSeconds,
+          canEdit: true,
+          canAdd: true,
+        },
+      };
       setResult(created);
       await sendEvidence(created);
     } catch (err) {
@@ -130,6 +157,16 @@ export default function Preview() {
                 <Link className="btn plain" to={`/track?ref=${encodeURIComponent(result.trackingRef)}`}>{t('prev.checkStatus')}</Link>
               </div>
             </>
+          )}
+          {secondsLeft > 0 && (
+            <div style={{ marginTop: 22, textAlign: 'left' }}>
+              <Callout tone="info">
+                <span>
+                  {t('prev.changeWindow1')} <span className="countdown">{mmss(secondsLeft)}</span>. {t('prev.changeWindow2')}{' '}
+                  <Link to={`/report/manage/${encodeURIComponent(result.reportId)}`}>{t('prev.changeLink')}</Link>
+                </span>
+              </Callout>
+            </div>
           )}
         </div>
       </div>

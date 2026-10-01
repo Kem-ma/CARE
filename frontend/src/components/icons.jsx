@@ -46,3 +46,9 @@ export const PinIcon = ({ size = 30 }) => (
     <circle cx="12" cy="10" r="2.6" />
   </svg>
 );
+
+export const PhoneIcon = ({ size = 26 }) => (
+  <svg {...base} width={size} height={size} strokeWidth="2">
+    <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
+  </svg>
+);

@@ -12,7 +12,7 @@ import { getSession, sessionInfo, signOut } from '../../lib/auth';
 import { errorText } from '../../lib/errors';
 import { formatTime, timeAgo } from '../../lib/incidents';
 
-const TABS = ['SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'FALSE_REPORT'];
+const TABS = ['SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'FALSE_REPORT', 'WITHDRAWN'];
 const ALWAYS_LOADED = ['SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS'];
 
 
@@ -35,6 +35,63 @@ function groupName(t, group) {
   const key = `group.${group}`;
   const name = t(key);
   return name === key ? (group || '').replace(/-/g, ' ') : name;
+}
+
+// What the reporter changed after sending, with the earlier wording kept for comparison
+function Amendments({ items }) {
+  const { t, lang } = useI18n();
+  if (!items?.length) return null;
+  const show = (value) => (value && typeof value === 'object' ? [value.city, value.quarter].filter(Boolean).join(', ') : value);
+  return (
+    <>
+      <div className="k lbl">{t('dash.amendments')}</div>
+      <ul className="hist">
+        {items.map((item) => (
+          <li key={`${item.kind}-${item.timestamp}-${item.text ?? ''}`}>
+            <span className="chip">{t(`dash.amend.${item.kind}`)}</span>
+            <span className="meta">{formatTime(item.timestamp, lang)}</span>
+            {item.kind === 'EDIT' && item.changes?.map((c) => (
+              <p className="change" key={c.field}>
+                <b>{t(`dash.field.${c.field}`)}:</b> <s>{show(c.before)}</s> → {show(c.after)}
+              </p>
+            ))}
+            {item.text && <span className="note">{item.text}</span>}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+// Who took the report for each group it was sent to, and which groups haven't responded yet
+function Acknowledgements({ report }) {
+  const { t, lang } = useI18n();
+  const groups = report.groupIds || [];
+  return (
+    <>
+      <div className="k lbl">{t('dash.acks')}</div>
+      <ul className="hist">
+        {groups.map((group) => {
+          const ack = report.acks?.[group];
+          return (
+            <li key={group}>
+              <b>{groupName(t, group)}</b>
+              {ack ? (
+                <span className="chip ok">
+                  {ack.email ? t('dash.ackedBy', { who: ack.email }) : t('dash.acked')}
+                  {ack.at ? ` · ${timeAgo(ack.at, t)}` : ''}
+                </span>
+              ) : report.pendingGroups?.includes(group) ? (
+                <span className="chip alert">{t('dash.ackWaiting')}</span>
+              ) : (
+                <span className="chip">{t('dash.ackNotNeeded')}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
 }
 
 const place = (item) => [item.incidentLocation?.city, item.incidentLocation?.quarter].filter(Boolean).join(', ');
@@ -142,6 +199,19 @@ export default function Dashboard() {
     }
   }
 
+  // The reporter can change a report in its first minutes. If the open one changes (or leaves
+  // the loaded lists, as a withdrawn report does), reload it so nobody acts on an old version.
+  const openEntry = Object.values(lists).flat().find((r) => r.reportId === selectedId);
+  const signature = openEntry ? `${openEntry.status}|${openEntry.lastAmendedAt ?? ''}` : 'gone';
+  const seen = useRef({ id: null, signature: null });
+  useEffect(() => {
+    const previous = seen.current;
+    seen.current = { id: selectedId, signature };
+    if (selectedId && previous.id === selectedId && previous.signature !== signature) {
+      loadDetail(selectedId, { withEvidence: false });
+    }
+  }, [selectedId, signature, loadDetail]);
+
   const acknowledge = (id) => act(() => acknowledgeReport(id));
 
   function turnOnSound() {
@@ -219,12 +289,13 @@ export default function Dashboard() {
             >
               <div className="qtop">
                 <span className="qtype">{typeName(t, item.incidentType)}</span>
-                <StatusPill status={item.status} />
+                <StatusPill status={item.awaitingMyGroup ? 'SUBMITTED' : item.status} />
               </div>
               <div className="qmeta">
                 <span>{place(item)}</span>
                 <span>{item.descriptionType === 'VOICE' ? t('dash.voice') : t('dash.text')}</span>
                 {item.proximityFlag === 'REVIEW' && <span className="review-tag">{t('dash.locReview')}</span>}
+                {item.lastAmendedAt && <span className="review-tag">{t('dash.changedTag')}</span>}
                 <span>{timeAgo(item.createdAt, t)}</span>
               </div>
             </button>
@@ -240,7 +311,7 @@ export default function Dashboard() {
             <>
               <h2>{typeName(t, report.incidentType)}</h2>
               <div className="dgrid">
-                <div><div className="k">{t('dash.status')}</div><div className="v"><StatusPill status={report.status} /></div></div>
+                <div><div className="k">{t('dash.status')}</div><div className="v"><StatusPill status={report.awaitingMyGroup ? 'SUBMITTED' : report.status} /></div></div>
                 <div><div className="k">{t('dash.submitted')}</div><div className="v">{formatTime(report.createdAt, lang)}</div></div>
                 <div><div className="k">{t('dash.locStated')}</div><div className="v">{report.incidentLocation?.city}, {report.incidentLocation?.quarter}</div></div>
                 <div><div className="k">{t('dash.reported')}</div><div className="v">{report.identified ? t('dash.acct') : t('dash.anon')}</div></div>
@@ -266,12 +337,19 @@ export default function Dashboard() {
                   : <p className="fine">{t('dash.photoFail')}</p>}
               </div>
 
+              <Acknowledgements report={report} />
+
+              <Amendments items={report.amendments} />
+
               <div className="k lbl">{t('dash.history')}</div>
               <ul className="hist">
                 {report.history.map((entry) => (
-                  <li key={`${entry.status}-${entry.timestamp}`}>
+                  <li key={`${entry.status}-${entry.timestamp}-${entry.group}`}>
                     <StatusPill status={entry.status} />
                     <span className="meta">{formatTime(entry.timestamp, lang)}</span>
+                    {(entry.by || entry.group) && (
+                      <span className="meta">{entry.by ? t('dash.byWho', { who: entry.by, group: groupName(t, entry.group) }) : groupName(t, entry.group)}</span>
+                    )}
                     {entry.note && <span className="note">{entry.note}</span>}
                   </li>
                 ))}
@@ -279,13 +357,13 @@ export default function Dashboard() {
 
               {actionError && <Callout tone="warn">{errorText(actionError, t)}</Callout>}
 
-              {report.status === 'SUBMITTED' && (
+              {report.awaitingMyGroup && (
                 <div className="actions">
                   <button className="btn primary" disabled={busy} onClick={() => acknowledge(report.reportId)}>{t('dash.ack')}</button>
                 </div>
               )}
 
-              {(report.status === 'ACKNOWLEDGED' || report.status === 'IN_PROGRESS') && (
+              {!report.awaitingMyGroup && (report.status === 'ACKNOWLEDGED' || report.status === 'IN_PROGRESS') && (
                 <>
                   <label className="lbl" htmlFor="note">
                     {report.status === 'IN_PROGRESS' ? t('dash.noteRequired') : t('dash.noteOptional')}

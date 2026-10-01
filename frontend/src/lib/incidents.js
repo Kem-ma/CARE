@@ -21,6 +21,7 @@ export const STATUS_CLASS = {
   IN_PROGRESS: 'wip',
   RESOLVED: 'fin',
   FALSE_REPORT: 'no',
+  WITHDRAWN: 'no',
 };
 
 // How many of the four progress segments are filled
@@ -31,7 +32,11 @@ export const STATUS_STEP = {
   IN_PROGRESS: 3,
   RESOLVED: 4,
   FALSE_REPORT: 4,
+  WITHDRAWN: 1,
 };
+
+// Statuses in which a reporter may still add information (and, while SUBMITTED, edit or withdraw)
+export const OPEN_STATUSES = new Set(['SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS']);
 
 export function formatTime(epochSeconds, lang) {
   const date = new Date(Number(epochSeconds) * 1000);
