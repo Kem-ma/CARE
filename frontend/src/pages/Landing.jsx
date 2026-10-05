@@ -16,7 +16,7 @@ export default function Landing() {
           <h1>{t('landing.title')}</h1>
           <p className="lede">{t('landing.lede')}</p>
           <div className="cta-row">
-            <button className="btn primary" onClick={() => navigate('/report/location')}>
+            <button className="btn primary" onClick={() => navigate('/report')}>
               {t('landing.report')}
             </button>
             <button className="btn secondary" onClick={() => navigate('/my-reports')}>
@@ -49,6 +49,9 @@ export default function Landing() {
               </li>
             ))}
           </ol>
+          <p className="fine" style={{ marginTop: 18 }}>
+            {t('how.stats')} <Link to="/statistics">{t('how.statsLink')}</Link>
+          </p>
         </div>
       </section>
     </>

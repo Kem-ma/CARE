@@ -6,12 +6,12 @@ import { I18nProvider, useI18n } from './i18n';
 import AdminSignIn from './pages/admin/AdminSignIn';
 import Dashboard from './pages/admin/Dashboard';
 import Landing from './pages/Landing';
-import LocationStep from './pages/LocationStep';
 import ManageReport from './pages/ManageReport';
 import MyReports from './pages/MyReports';
 import Preview from './pages/Preview';
 import ReportForm from './pages/ReportForm';
 import SignIn from './pages/SignIn';
+import Statistics from './pages/Statistics';
 import Track from './pages/Track';
 
 function NotFound() {
@@ -34,12 +34,12 @@ export default function App() {
             <Routes>
               <Route element={<Layout />}>
                 <Route path="/" element={<Landing />} />
-                <Route path="/report/location" element={<LocationStep />} />
                 <Route path="/report" element={<ReportForm />} />
                 <Route path="/report/preview" element={<Preview />} />
                 <Route path="/report/manage/:id" element={<ManageReport />} />
                 <Route path="/my-reports" element={<MyReports />} />
                 <Route path="/track" element={<Track />} />
+                <Route path="/statistics" element={<Statistics />} />
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

@@ -7,13 +7,13 @@ import { mmss, useCountdown } from '../hooks/useCountdown';
 import { typeName, useI18n } from '../i18n';
 import { amendReport, ownReport } from '../lib/api';
 import { errorText } from '../lib/errors';
-import { formatTime } from '../lib/incidents';
+import { formatTime, townOf } from '../lib/incidents';
 
 const PHONE = /^[+0-9 ()-]{6,30}$/;
 
 function EditForm({ view, busy, onSave }) {
   const { t } = useI18n();
-  const [city, setCity] = useState(view.incidentLocation?.city || '');
+  const [landmark, setLandmark] = useState(view.incidentLocation?.landmark || '');
   const [quarter, setQuarter] = useState(view.incidentLocation?.quarter || '');
   const [text, setText] = useState(view.descriptionText || '');
   const [guardian, setGuardian] = useState(view.guardianContact || '');
@@ -22,14 +22,14 @@ function EditForm({ view, busy, onSave }) {
   function submit(event) {
     event.preventDefault();
     const found = [];
-    if (!city.trim()) found.push('v.city');
     if (!quarter.trim()) found.push('v.quarter');
     if (view.descriptionType === 'TEXT' && !text.trim()) found.push('v.text');
     if (view.guardianContact && !PHONE.test(guardian.trim())) found.push('v.guardian');
     setProblems(found);
     if (found.length) return;
 
-    const change = { action: 'edit', incidentLocation: { city: city.trim(), quarter: quarter.trim() } };
+    // The town decided who is responsible, so only the details that help find the place can change
+    const change = { action: 'edit', incidentLocation: { quarter: quarter.trim(), landmark: landmark.trim() || null } };
     if (view.descriptionType === 'TEXT') change.descriptionText = text.trim();
     if (view.guardianContact) change.guardianContact = guardian.trim();
     onSave(change);
@@ -50,10 +50,10 @@ function EditForm({ view, busy, onSave }) {
         </div>
       )}
       <div className="field">
-        <span className="lbl">{t('form.where')}</span>
+        <span className="lbl">{t('form.quarter')} · {townOf(view.incidentLocation)}</span>
         <div className="two">
-          <input className="inp" aria-label={t('form.city')} maxLength={100} value={city} onChange={(e) => setCity(e.target.value)} />
           <input className="inp" aria-label={t('form.quarter')} maxLength={100} value={quarter} onChange={(e) => setQuarter(e.target.value)} />
+          <input className="inp" aria-label={t('form.landmark')} placeholder={t('form.landmarkPh')} maxLength={200} value={landmark} onChange={(e) => setLandmark(e.target.value)} />
         </div>
       </div>
       {view.descriptionType === 'TEXT' ? (
@@ -203,7 +203,7 @@ export default function ManageReport() {
         <section className="amend">
           <h2>{t('manage.editTitle')}</h2>
           <p className="fine">{t('manage.editNote')}</p>
-          <EditForm key={`${view.reportId}-${view.descriptionText}-${view.incidentLocation?.quarter}`} view={view} busy={busy} onSave={(body) => change(body, 'manage.saved')} />
+          <EditForm key={`${view.reportId}-${view.descriptionText}-${view.incidentLocation?.quarter}-${view.incidentLocation?.landmark}`} view={view} busy={busy} onSave={(body) => change(body, 'manage.saved')} />
         </section>
       )}
 

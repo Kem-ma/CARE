@@ -1,26 +1,74 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Progress, StatusPill } from '../components/ui';
+import { teamName } from '../components/StaffTools';
+import { Callout, Progress, StatusPill } from '../components/ui';
 import { typeName, useI18n } from '../i18n';
-import { trackReport } from '../lib/api';
+import { answerQuestion, trackReport } from '../lib/api';
 import { errorText } from '../lib/errors';
 import { formatTime } from '../lib/incidents';
+
+// One question from a team, answered once. Nothing about the reporter is shown or asked for.
+function Question({ code, question, onAnswered }) {
+  const { t, lang } = useI18n();
+  const [answer, setAnswer] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const text = question.template ? t(`q.${question.template}`) : question.text;
+
+  async function send(event) {
+    event.preventDefault();
+    if (!answer.trim()) {
+      setError({ key: 'track.answerEmpty' });
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await answerQuestion(code, question.questionId, answer.trim());
+      onAnswered();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="question">
+      <div className="fine">{t('track.questionFrom', { team: teamName(t, question.team) })} · {formatTime(question.askedAt, lang)}</div>
+      <p className="qtext">{text}</p>
+      {question.answer ? (
+        <p className="fine">{t('track.yourAnswer', { answer: question.answer })}</p>
+      ) : (
+        <form onSubmit={send}>
+          <textarea className="inp" aria-label={t('track.answerLabel')} maxLength={500} placeholder={t('track.answerPh')}
+            value={answer} onChange={(e) => { setAnswer(e.target.value); setError(null); }} />
+          {error && <Callout tone="warn">{errorText(error, t)}</Callout>}
+          <p className="fine">{t('track.answerWarning')}</p>
+          <button className="btn small primary" disabled={busy}>{busy ? t('auth.wait') : t('track.answerBtn')}</button>
+        </form>
+      )}
+    </div>
+  );
+}
 
 export default function Track() {
   const [params, setParams] = useSearchParams();
   const { t, lang } = useI18n();
   const initial = params.get('ref') || '';
   const [ref, setRef] = useState(initial);
+  const [code, setCode] = useState('');   // the code the shown report was found with
   const [report, setReport] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  async function lookup(code) {
+  async function lookup(value) {
     setBusy(true);
     setError(null);
     setReport(null);
     try {
-      setReport(await trackReport(code));
+      setReport(await trackReport(value));
+      setCode(value);
     } catch (err) {
       setError(err);
     } finally {
@@ -76,6 +124,16 @@ export default function Track() {
           <StatusPill status={report.status} />
           <Progress status={report.status} />
         </article>
+      )}
+
+      {report?.questions?.length > 0 && (
+        <section className="questions">
+          <h2>{t('track.questionsTitle')}</h2>
+          <p className="fine">{t('track.questionsNote')}</p>
+          {report.questions.map((q) => (
+            <Question key={q.questionId} code={code} question={q} onAnswered={() => lookup(code)} />
+          ))}
+        </section>
       )}
 
       <p className="fine" style={{ marginTop: 22 }}>

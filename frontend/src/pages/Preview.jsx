@@ -8,14 +8,14 @@ import { mmss, useCountdown } from '../hooks/useCountdown';
 import { typeName, useI18n } from '../i18n';
 import { submitReport, uploadEvidence } from '../lib/api';
 import { errorText } from '../lib/errors';
-import { NEEDS_GUARDIAN } from '../lib/incidents';
-import { getLocation } from '../lib/location';
+import { NEEDS_GUARDIAN, REGION } from '../lib/incidents';
+import { contactAllowed } from './ReportForm';
 
 // phase: 'review' | 'sending' | 'uploading' | 'upload-failed' | 'done'
 export default function Preview() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { draft, update, reset, recent, setRecent } = useDraft();
+  const { draft, reset, recent, setRecent } = useDraft();
   const { t } = useI18n();
   const [phase, setPhase] = useState('review');
   const [error, setError] = useState(null); // kept as an error object so it re-translates
@@ -64,30 +64,26 @@ export default function Preview() {
     setError(null);
     setPhase('sending');
 
-    // A fresh reading now that the form is finished; keep the earlier one if this fails.
-    let reading = draft.reading;
-    if (draft.locState === 'granted') {
-      try {
-        reading = await getLocation();
-        update({ reading });
-      } catch {
-        // keep the earlier reading
-      }
-    }
-
     evidence.current = {
       photo: draft.photo.blob,
       audio: draft.descType === 'voice' ? draft.audio : null,
     };
 
+    // The incident's location only, as the reporter describes it. Never the reporter's own.
     const body = {
       incidentType: draft.type,
+      dangerNow: draft.danger,
       descriptionType: draft.descType === 'voice' ? 'VOICE' : 'TEXT',
       ...(draft.descType === 'text' ? { descriptionText: draft.text.trim() } : {}),
-      incidentLocation: { city: draft.city.trim(), quarter: draft.quarter.trim() },
+      incidentLocation: {
+        where: draft.where,
+        town: draft.town,
+        quarter: draft.quarter.trim(),
+        landmark: draft.landmark.trim() || null,
+      },
+      contactAllowed: contactAllowed(draft),
       hasPhoto: true,
       ...(NEEDS_GUARDIAN.has(draft.type) ? { guardianContact: draft.guardian.trim() } : {}),
-      ...(reading ? { deviceLocation: reading } : {}),
     };
 
     try {
@@ -223,18 +219,19 @@ export default function Preview() {
         {NEEDS_GUARDIAN.has(draft.type) && (
           <div className="row"><span className="k">{t('prev.guardian')}</span><span className="v mono">{draft.guardian}</span></div>
         )}
-        <div className="row"><span className="k">{t('prev.location')}</span><span className="v">{draft.city}, {draft.quarter}</span></div>
         <div className="row">
-          <span className="k">{t('prev.deviceLoc')}</span>
+          <span className="k">{t('prev.danger')}</span>
           <span className="v">
-            {draft.locState === 'granted' ? (
-              <span className="chip">{t('prev.captured')}</span>
-            ) : (
-              <>
-                <span className="chip alert">{t('prev.notShared')}</span>{' '}
-                <span className="fine">{t('prev.notSharedNote')}</span>
-              </>
-            )}
+            {draft.danger ? <span className="chip alert">{t('form.yes')}</span> : t('form.no')}
+          </span>
+        </div>
+        <div className="row">
+          <span className="k">{t('prev.location')}</span>
+          <span className="v">
+            {draft.quarter}, {draft.where === 'IN_TOWN' ? draft.town : t('prev.near', { town: draft.town })}
+            {' · '}{t(`region.${REGION}`)}
+            <br /><span className="fine">{t(`where.${draft.where}`)}</span>
+            {draft.landmark.trim() && <><br /><span className="fine">{draft.landmark}</span></>}
           </span>
         </div>
         <div className="row">
@@ -250,6 +247,10 @@ export default function Preview() {
         <div className="row">
           <span className="k">{t('prev.photo')}</span>
           <span className="v"><img className="thumb" src={draft.photo.url} alt={t('prev.photoAlt')} /></span>
+        </div>
+        <div className="row">
+          <span className="k">{t('prev.contact')}</span>
+          <span className="v">{contactAllowed(draft) ? t('prev.contactYes') : t('prev.contactNo')}</span>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LockIcon } from '../components/icons';
-import { Progress, StatusPill } from '../components/ui';
+import { Callout, Progress, StatusPill } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { mmss, useCountdown } from '../hooks/useCountdown';
 import { typeName, useI18n } from '../i18n';
@@ -117,18 +117,28 @@ export default function MyReports() {
           <article className="rep" key={report.reportId}>
             <div className="top">
               <span className="ty">{typeName(t, report.incidentType)}</span>
-              <span className="meta">{[report.city, report.quarter].filter(Boolean).join(', ')} · {formatTime(report.createdAt, lang)}</span>
+              <span className="meta">{[report.quarter, report.town || report.city].filter(Boolean).join(', ')} · {formatTime(report.createdAt, lang)}</span>
             </div>
             <StatusPill status={report.status} />
             <Progress status={report.status} />
             <div className="meta" style={{ gridColumn: '1 / -1' }}>{t('mine.code', { code: report.trackingRef })}</div>
+            {report.questionWaiting && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Callout tone="info">
+                  <span>
+                    {t('mine.question')}{' '}
+                    <Link to={`/track?ref=${encodeURIComponent(report.trackingRef)}`}>{t('mine.questionLink')}</Link>
+                  </span>
+                </Callout>
+              </div>
+            )}
             <ChangeLink report={report} loadedAt={loadedAt} />
           </article>
         ))}
       </div>
 
       <div className="actions" style={{ marginTop: 24 }}>
-        <button className="btn primary" onClick={() => navigate('/report/location')}>{t('landing.report')}</button>
+        <button className="btn primary" onClick={() => navigate('/report')}>{t('landing.report')}</button>
         {reports && <button className="btn plain" onClick={load}>{t('mine.refresh')}</button>}
       </div>
     </div>

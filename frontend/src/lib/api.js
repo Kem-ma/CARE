@@ -22,6 +22,16 @@ const SERVER_MESSAGES = {
   'This report can no longer be changed': 'err.amendClosed',
   'Acknowledge this report before changing its status': 'err.ackFirst',
   'Waiting for another group to acknowledge this report': 'err.waitingGroups',
+  'A reason is required to close a report without action': 'err.reasonRequired',
+  'Transfer it instead: no other team has this report': 'err.cantRelease',
+  'That team already has this report': 'err.teamHasIt',
+  'Only open reports can be linked': 'err.cantLink',
+  'This report is not linked': 'err.notLinked',
+  'The reporter asked not to be contacted': 'err.noContact',
+  'Wait for the reporter to answer the open question': 'err.questionOpen',
+  'At most 3 questions can be asked': 'err.maxQuestions',
+  'This question was already answered': 'err.alreadyAnswered',
+  'Question not found': 'err.questionGone',
   'Report not found': 'err.reportNotFound',
   "A voice description can't be edited. Add information instead.": 'err.voiceNoEdit',
 };
@@ -78,6 +88,11 @@ export const submitReport = (body, signedIn) =>
   });
 
 export const trackReport = (ref) => request(`/reports/track/${encodeURIComponent(ref.trim())}`);
+// The reporter answers a staff question, once. The tracking code is the credential, as for the status.
+export const answerQuestion = (ref, questionId, answer) =>
+  request(`/reports/track/${encodeURIComponent(ref.trim())}/answer`, { method: 'POST', body: { questionId, answer } });
+// Public figures on how reports were handled: totals and rates only
+export const getStats = () => request('/stats');
 export const myReports = () => request('/reports/mine', { auth: 'citizen' });
 export const ownReport = (id) => request(`/reports/mine/${encodeURIComponent(id)}`, { auth: 'citizen' });
 
@@ -117,3 +132,19 @@ export const setReportStatus = (id, status, note) =>
     auth: 'admin',
     body: { status, note: note || null },
   });
+
+// Staff actions beyond acknowledging and status changes. Each is recorded on the report.
+const staffAction = (id, action, body) =>
+  request(`/reports/${encodeURIComponent(id)}/${action}`, { method: 'POST', auth: 'admin', body: body || {} });
+
+export const setPriority = (id, priority) =>
+  request(`/reports/${encodeURIComponent(id)}/priority`, { method: 'PATCH', auth: 'admin', body: { priority } });
+export const transferReport = (id, toTeam, note) => staffAction(id, 'transfer', { toTeam, note: note || null });
+// "Not our area": step out of a report another team also has
+export const releaseReport = (id, note) => staffAction(id, 'transfer', { note: note || null });
+export const referReport = (id, to, method, note) => staffAction(id, 'refer', { to, method, note: note || null });
+export const linkReport = (id, primaryId) => staffAction(id, 'link', { primaryId });
+export const unlinkReport = (id) => staffAction(id, 'unlink');
+export const keepSeparate = (id, otherId) => staffAction(id, 'separate', { otherId });
+// Ask the reporter a question: { template } for a ready-made one, or { text }
+export const askReporter = (id, question) => staffAction(id, 'ask', question);

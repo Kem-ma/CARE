@@ -4,15 +4,17 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 // half-finished report can't be found later on a shared phone.
 const emptyDraft = {
   type: '',
-  city: '',
+  danger: null,     // true | false, "Is someone in danger right now?"
+  where: '',        // 'IN_TOWN' | 'OUTSIDE' | 'UNSURE'
+  town: '',         // where it happened, or the nearest town when outside one
   quarter: '',
+  landmark: '',
   guardian: '',
   descType: 'text', // 'text' | 'voice'
   text: '',
   audio: null,      // { blob, mime, seconds, url }
   photo: null,      // { blob, url }
-  locState: 'unknown', // 'unknown' | 'granted' | 'denied'
-  reading: null,    // { lat, lng, accuracy, capturedAt }
+  contact: null,    // null = the default for the type; true | false once the reporter chooses
 };
 
 const DraftContext = createContext(null);

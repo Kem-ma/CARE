@@ -53,7 +53,10 @@ export default function Layout() {
       </main>
       <footer className="sfoot">
         <span>C.A.R.E</span>
-        <Link to="/admin/sign-in">{t('footer.staff')}</Link>
+        <span className="foot-links">
+          <Link to="/statistics">{t('footer.stats')}</Link>
+          <Link to="/admin/sign-in">{t('footer.staff')}</Link>
+        </span>
       </footer>
     </div>
   );

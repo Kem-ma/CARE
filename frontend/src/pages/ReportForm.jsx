@@ -8,9 +8,13 @@ import { useRecorder } from '../hooks/useRecorder';
 import { typeName, useI18n } from '../i18n';
 import { errorText } from '../lib/errors';
 import { toJpeg } from '../lib/image';
-import { INCIDENT_TYPES, NEEDS_GUARDIAN } from '../lib/incidents';
+import { INCIDENT_TYPES, MINPROFF_TYPES, NEEDS_GUARDIAN, REGION, TOWNS, WHERE } from '../lib/incidents';
 
 const PHONE = /^[+0-9 ()-]{6,30}$/;
+
+// MINPROFF reporters are not contacted unless they choose to be: a question showing up on a
+// shared phone could put a victim at risk. Everyone else can be asked a follow-up question.
+export const contactAllowed = (draft) => draft.contact ?? !MINPROFF_TYPES.has(draft.type);
 
 function ReportingMode({ signedIn }) {
   const { t } = useI18n();
@@ -88,8 +92,10 @@ export default function ReportForm() {
   function validate() {
     const found = [];
     if (!draft.type) found.push('v.type');
+    if (draft.danger === null) found.push('v.danger');
     if (needsGuardian && !PHONE.test(draft.guardian.trim())) found.push('v.guardian');
-    if (!draft.city.trim()) found.push('v.city');
+    if (!draft.where) found.push('v.where');
+    if (!draft.town) found.push('v.town');
     if (!draft.quarter.trim()) found.push('v.quarter');
     if (draft.descType === 'text' && !draft.text.trim()) found.push('v.text');
     if (draft.descType === 'voice' && !draft.audio) found.push('v.voice');
@@ -130,7 +136,18 @@ export default function ReportForm() {
               <option key={type} value={type}>{typeName(t, type)}</option>
             ))}
           </select>
+          {draft.type && <div className="hint">{t(`hint.${draft.type}`)}</div>}
+          <div className="hint">{t('form.scope')}</div>
         </div>
+
+        <fieldset className="field">
+          <legend className="lbl">{t('form.danger')} <span className="req">*</span></legend>
+          <div className="seg" role="group">
+            <button type="button" aria-pressed={draft.danger === true} onClick={() => update({ danger: true })}>{t('form.yes')}</button>
+            <button type="button" aria-pressed={draft.danger === false} onClick={() => update({ danger: false })}>{t('form.no')}</button>
+          </div>
+          {draft.danger === true && <Callout tone="warn">{t('form.dangerCall')}</Callout>}
+        </fieldset>
 
         {needsGuardian && (
           <div className="field">
@@ -152,39 +169,62 @@ export default function ReportForm() {
         )}
 
         <div className="field">
-          <span className="lbl">{t('form.where')} <span className="req">*</span></span>
-          <div className="two">
-            <input
-              className="inp"
-              aria-label={t('form.city')}
-              placeholder={t('form.cityPh')}
-              maxLength={100}
-              value={draft.city}
-              onChange={(e) => update({ city: e.target.value })}
-            />
-            <input
-              className="inp"
-              aria-label={t('form.quarter')}
-              placeholder={t('form.quarterPh')}
-              maxLength={100}
-              value={draft.quarter}
-              onChange={(e) => update({ quarter: e.target.value })}
-            />
-          </div>
-          {draft.locState === 'granted' && (
-            <Callout tone="good"><b>{t('form.locGranted1')}</b> {t('form.locGranted2')}</Callout>
-          )}
-          {draft.locState === 'denied' && (
-            <Callout tone="info"><b>{t('form.locDenied1')}</b> {t('form.locDenied2')}</Callout>
-          )}
-          {draft.locState === 'unknown' && (
-            <Callout tone="info">
-              <span>
-                {t('form.locUnknown1')} <Link to="/report/location">{t('form.locUnknownLink')}</Link> {t('form.locUnknown2')}
-              </span>
-            </Callout>
-          )}
+          <span className="lbl">{t('form.region')}</span>
+          <div className="fixed">{t(`region.${REGION}`)}</div>
         </div>
+
+        <fieldset className="field">
+          <legend className="lbl">{t('form.where')} <span className="req">*</span></legend>
+          <div className="choices">
+            {WHERE.map((where) => (
+              <label key={where} className={`choice ${draft.where === where ? 'on' : ''}`}>
+                <input type="radio" name="where" checked={draft.where === where} onChange={() => update({ where })} />
+                <span>
+                  {t(`where.${where}`)}
+                  {where === 'OUTSIDE' && <span className="d">{t('where.OUTSIDE.d')}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {draft.where && (
+          <>
+            <div className="field">
+              <label htmlFor="town">
+                {draft.where === 'IN_TOWN' ? t('form.town') : t('form.nearestTown')} <span className="req">*</span>
+              </label>
+              <select id="town" className="inp" value={draft.town} onChange={(e) => update({ town: e.target.value })}>
+                <option value="">{t('form.townPlaceholder')}</option>
+                {TOWNS.map((town) => <option key={town} value={town}>{town}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="quarter">
+                {draft.where === 'IN_TOWN' ? t('form.quarter') : t('form.place')} <span className="req">*</span>
+              </label>
+              <input
+                id="quarter"
+                className="inp"
+                maxLength={100}
+                placeholder={draft.where === 'IN_TOWN' ? t('form.quarterPh') : t('form.placePh')}
+                value={draft.quarter}
+                onChange={(e) => update({ quarter: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="landmark">{t('form.landmark')}</label>
+              <input
+                id="landmark"
+                className="inp"
+                maxLength={200}
+                placeholder={t('form.landmarkPh')}
+                value={draft.landmark}
+                onChange={(e) => update({ landmark: e.target.value })}
+              />
+            </div>
+          </>
+        )}
 
         <div className="field">
           <span className="lbl">{t('form.desc')} <span className="req">*</span></span>
@@ -245,6 +285,14 @@ export default function ReportForm() {
           )}
           {photoError && <Callout tone="warn">{errorText(photoError, t)}</Callout>}
         </div>
+
+        <label className="check">
+          <input type="checkbox" checked={!contactAllowed(draft)} onChange={(e) => update({ contact: !e.target.checked })} />
+          <span>
+            {t('form.noContact')}
+            <span className="d">{t('form.noContactNote')}</span>
+          </span>
+        </label>
       </div>
 
       <div className="actions">
