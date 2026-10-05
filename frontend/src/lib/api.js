@@ -121,6 +121,7 @@ export async function uploadEvidence(upload, blob, contentType) {
 
 // ----- admin -----
 
+// status 'WATCHING': other stations' urgent reports gone unanswered, what and where only
 export const adminList = (status) => request(`/reports?status=${encodeURIComponent(status)}`, { auth: 'admin' });
 export const adminReport = (id) => request(`/reports/${encodeURIComponent(id)}`, { auth: 'admin' });
 export const adminEvidence = (id) => request(`/reports/${encodeURIComponent(id)}/evidence`, { auth: 'admin' });

@@ -1,14 +1,13 @@
 // The audible alert for admins: a two-tone siren, generated in the browser (no audio file).
-// It rings for up to 3 minutes per report, or until that report is acknowledged.
-export const ALARM_MS = 3 * 60 * 1000;
+// It rings for every urgent or high report until that report is acknowledged. There is no mute:
+// the only way to stop it is to take the report.
 
 let context = null;
 let timer = null;
 let high = false;
-const active = new Map(); // reportId -> when it stops ringing (ms)
-const muted = new Set();  // reports the admin silenced by hand
+const active = new Set(); // reportIds still ringing
 
-// Browsers only allow sound after a click, so the dashboard calls this from a button.
+// Browsers only allow sound after a click, so the dashboard calls this from the "Start shift" button.
 export function unlockAudio() {
   if (!context) context = new (window.AudioContext || window.webkitAudioContext)();
   if (context.state === 'suspended') context.resume();
@@ -28,8 +27,6 @@ function beep() {
 }
 
 function tick() {
-  const now = Date.now();
-  for (const [id, until] of active) if (until <= now) active.delete(id);
   if (active.size === 0) {
     clearInterval(timer);
     timer = null;
@@ -39,24 +36,14 @@ function tick() {
   beep();
 }
 
-export function startAlarm(reportId, remainingMs = ALARM_MS) {
-  if (active.has(reportId) || muted.has(reportId)) return;
-  active.set(reportId, Date.now() + remainingMs);
-  if (!timer) {
+// Ring for exactly these reports: the ones still waiting on this admin's team.
+export function syncAlarms(unacknowledgedIds) {
+  for (const id of [...active]) if (!unacknowledgedIds.has(id)) active.delete(id);
+  for (const id of unacknowledgedIds) active.add(id);
+  if (active.size > 0 && !timer) {
     timer = setInterval(tick, 700);
     tick();
   }
-}
-
-// Keep only the alarms for reports that are still unacknowledged.
-export function syncAlarms(unacknowledgedIds) {
-  for (const id of [...active.keys()]) if (!unacknowledgedIds.has(id)) active.delete(id);
-  for (const id of [...muted]) if (!unacknowledgedIds.has(id)) muted.delete(id);
-}
-
-export function muteAll() {
-  for (const id of active.keys()) muted.add(id);
-  active.clear();
 }
 
 export const isRinging = () => active.size > 0;

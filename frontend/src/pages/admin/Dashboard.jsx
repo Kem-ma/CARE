@@ -7,7 +7,7 @@ import { typeName, useI18n } from '../../i18n';
 import {
   acknowledgeReport, adminEvidence, adminList, adminReport, setReportStatus,
 } from '../../lib/api';
-import { ALARM_MS, muteAll, startAlarm, syncAlarms, unlockAudio } from '../../lib/alarm';
+import { syncAlarms, unlockAudio } from '../../lib/alarm';
 import { getSession, sessionInfo, signOut } from '../../lib/auth';
 import { errorText } from '../../lib/errors';
 import { RINGS, formatTime, timeAgo, townOf } from '../../lib/incidents';
@@ -77,11 +77,39 @@ function Acknowledgements({ report }) {
           );
         })}
       </ul>
+      {report.watchedAt && <p className="fine">{t('dash.watchedAt', { time: formatTime(report.watchedAt, lang) })}</p>}
     </>
   );
 }
 
-const place = (item) => [item.incidentLocation?.quarter, townOf(item.incidentLocation)].filter(Boolean).join(', ');
+// Urgent reports another police station hasn't acknowledged after 5 minutes. For awareness only:
+// what and where, and whose it is. They can't be opened or acted on from here.
+function WatchList({ items }) {
+  const { t } = useI18n();
+  if (!items?.length) return null;
+  return (
+    <section className="watch" aria-label={t('dash.watchTitle')}>
+      <div className="watch-head">
+        <b>{t('dash.watchTitle')}</b>
+        <span className="fine">{t('dash.watchNote')}</span>
+      </div>
+      <ul>
+        {items.map((item) => (
+          <li key={item.reportId}>
+            <span className="qtype">{typeName(t, item.incidentType)}</span> <PriorityPill priority={item.priority} />
+            <div className="qmeta">
+              <span>{[item.landmark, item.quarter, item.town].filter(Boolean).join(', ')}</span>
+              <span>{t('dash.watchBelongs', { team: item.waitingOn.map((g) => teamName(t, g)).join(', ') })}</span>
+              <span>{t('dash.watchWaiting', { ago: timeAgo(item.alertedAt, t) })}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const place =(item) => [item.incidentLocation?.quarter, townOf(item.incidentLocation)].filter(Boolean).join(', ');
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -89,6 +117,7 @@ export default function Dashboard() {
   const [info, setInfo] = useState(null);
   const [tab, setTab] = useState('SUBMITTED');
   const [lists, setLists] = useState({});
+  const [watching, setWatching] = useState([]);
   const [loadError, setLoadError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -110,8 +139,12 @@ export default function Dashboard() {
   const refresh = useCallback(async () => {
     const wanted = [...new Set([...ALWAYS_LOADED, tabRef.current])];
     try {
-      const entries = await Promise.all(wanted.map(async (status) => [status, (await adminList(status)).reports]));
+      const [entries, watch] = await Promise.all([
+        Promise.all(wanted.map(async (status) => [status, (await adminList(status)).reports])),
+        adminList('WATCHING'),
+      ]);
       setLists((previous) => ({ ...previous, ...Object.fromEntries(entries) }));
+      setWatching(watch.reports);
       setLoadError(null);
     } catch (error) {
       if (error.status === 401) navigate('/admin/sign-in', { replace: true });
@@ -132,23 +165,20 @@ export default function Dashboard() {
   }, [tab, info, refresh]);
 
   const socketStatus = useAlertSocket((message) => {
-    if (message.type === 'NEW_REPORT_ALERT') refresh();
+    if (message.type === 'NEW_REPORT_ALERT' || message.type === 'WATCH_ALERT') refresh();
   }, Boolean(info));
 
-  // The SUBMITTED list is the source of truth for what is ringing. Only urgent and high reports
-  // ring, for at most 3 minutes from when admins were alerted, and stop once acknowledged.
-  // Standard reports (theft, burglary, other) wait in the queue without an alarm.
+  // The SUBMITTED list is the source of truth for what is ringing. Urgent and high reports ring
+  // until your team acknowledges them; there is no mute. Standard reports (theft, burglary, other)
+  // wait in the queue without an alarm. Reports you only watch never ring: you can't stop them.
   const unacknowledged = lists.SUBMITTED;
   const ringing = unacknowledged?.filter((r) => RINGS.has(priorityOf(r)));
   useEffect(() => {
-    if (!ringing) return;
-    syncAlarms(new Set(ringing.map((r) => r.reportId)));
-    ringing.forEach((r) => {
-      const age = Date.now() - Number(r.alertedAt ?? r.createdAt) * 1000;
-      if (age < ALARM_MS) startAlarm(r.reportId, ALARM_MS - age);
-    });
+    if (ringing) syncAlarms(new Set(ringing.map((r) => r.reportId)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unacknowledged]);
+  // Leaving the dashboard stops the siren
+  useEffect(() => () => syncAlarms(new Set()), []);
 
   const loadDetail = useCallback(async (id, { withEvidence }) => {
     const [report, evidence] = await Promise.allSettled([
@@ -221,30 +251,39 @@ export default function Dashboard() {
   const visible = lists[tab] || [];
   const report = detail?.report;
 
+  const header = (
+    <header className="admin-bar">
+      <Link to="/admin" className="brand"><span className="mark">C</span><b>{t('dash.title')}</b></Link>
+      <div className="admin-tools">
+        <span className={`live ${socketStatus === 'live' ? 'on' : ''}`} role="status">
+          <i /> {socketStatus === 'live' ? t('dash.live') : t('dash.reconnecting')}
+        </span>
+        <span>{info.groups.map((g) => teamName(t, g)).join(', ')} · {info.email}</span>
+        <LanguageSwitch />
+        <button className="btn small plain" onClick={logout}>{t('nav.signOut')}</button>
+      </div>
+    </header>
+  );
+
+  // Browsers only allow sound after a click on the page. The queue stays hidden until that click,
+  // so nobody can work with the alarm silent.
+  if (!soundOn) {
+    return (
+      <div className="app">
+        {header}
+        <div className="shift">
+          <h1>{t('dash.shiftTitle')}</h1>
+          <p>{t('dash.shiftText')}</p>
+          {alerts.length > 0 && <p className="shift-waiting" role="status">{t('dash.shiftWaiting', { n: alerts.length })}</p>}
+          <button className="btn primary" onClick={turnOnSound}>{t('dash.shiftStart')}</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <header className="admin-bar">
-        <Link to="/admin" className="brand"><span className="mark">C</span><b>{t('dash.title')}</b></Link>
-        <div className="admin-tools">
-          <span className={`live ${socketStatus === 'live' ? 'on' : ''}`} role="status">
-            <i /> {socketStatus === 'live' ? t('dash.live') : t('dash.reconnecting')}
-          </span>
-          <span>{info.groups.map((g) => teamName(t, g)).join(', ')} · {info.email}</span>
-          <LanguageSwitch />
-          {soundOn && <button className="btn small plain" onClick={muteAll}>{t('dash.mute')}</button>}
-          <button className="btn small plain" onClick={logout}>{t('nav.signOut')}</button>
-        </div>
-      </header>
-
-      {!soundOn && (
-        <div className="alarm-banner quiet" role="status">
-          <div className="txt">
-            <div className="tt">{t('dash.soundOffTitle')}</div>
-            <div className="tsub">{t('dash.soundOffText')}</div>
-          </div>
-          <button className="btn small" onClick={turnOnSound}>{t('dash.soundOn')}</button>
-        </div>
-      )}
+      {header}
 
       {alerts.slice(0, 3).map((alert) => (
         <div className="alarm-banner" key={alert.reportId} role="alert">
@@ -260,6 +299,8 @@ export default function Dashboard() {
         </div>
       ))}
       {alerts.length > 3 && <p className="fine" style={{ margin: '8px 24px 0' }}>{t('dash.moreWaiting', { n: alerts.length - 3 })}</p>}
+
+      <WatchList items={watching} />
 
       <div className="admin-body">
         <section aria-label={t('dash.queue')}>
