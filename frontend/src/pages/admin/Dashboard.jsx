@@ -382,9 +382,10 @@ export default function Dashboard() {
 
               <div className="k lbl">{t('dash.photoEvidence')}</div>
               <div className="evidence">
-                {detail.evidence?.photoUrl
-                  ? <img src={detail.evidence.photoUrl} alt={t('dash.photoAlt')} />
-                  : <p className="fine">{t('dash.photoFail')}</p>}
+                {!report.photoKey ? <p className="fine">{t('dash.noPhoto')}</p>
+                  : detail.evidence?.photoUrl
+                    ? <img src={detail.evidence.photoUrl} alt={t('dash.photoAlt')} />
+                    : <p className="fine">{t('dash.photoFail')}</p>}
               </div>
 
               <Acknowledgements report={report} />

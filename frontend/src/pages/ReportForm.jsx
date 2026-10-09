@@ -8,7 +8,7 @@ import { useRecorder } from '../hooks/useRecorder';
 import { typeName, useI18n } from '../i18n';
 import { errorText } from '../lib/errors';
 import { toJpeg } from '../lib/image';
-import { INCIDENT_TYPES, MINPROFF_TYPES, NEEDS_GUARDIAN, REGION, TOWNS, WHERE } from '../lib/incidents';
+import { INCIDENT_TYPES, MINPROFF_TYPES, NEEDS_GUARDIAN, PHOTO_OPTIONAL, REGION, TOWNS, WHERE } from '../lib/incidents';
 
 const PHONE = /^[+0-9 ()-]{6,30}$/;
 
@@ -61,6 +61,7 @@ export default function ReportForm() {
   const fileInput = useRef(null);
 
   const needsGuardian = NEEDS_GUARDIAN.has(draft.type);
+  const photoOptional = PHOTO_OPTIONAL.has(draft.type);
 
   const recorder = useRecorder((result) => {
     if (result.blob.size < 1000) {
@@ -99,7 +100,7 @@ export default function ReportForm() {
     if (!draft.quarter.trim()) found.push('v.quarter');
     if (draft.descType === 'text' && !draft.text.trim()) found.push('v.text');
     if (draft.descType === 'voice' && !draft.audio) found.push('v.voice');
-    if (!draft.photo) found.push('v.photo');
+    if (!draft.photo && !photoOptional) found.push('v.photo');
     return found;
   }
 
@@ -264,7 +265,9 @@ export default function ReportForm() {
         </div>
 
         <div className="field">
-          <span className="lbl">{t('form.photo')} <span className="req">*</span></span>
+          <span className="lbl">
+            {photoOptional ? t('form.photoOptional') : <>{t('form.photo')} <span className="req">*</span></>}
+          </span>
           <input ref={fileInput} type="file" accept="image/*" hidden onChange={onPhoto} />
           {draft.photo ? (
             <div className="photo-preview">
@@ -279,7 +282,7 @@ export default function ReportForm() {
               <span>
                 <b>{photoBusy ? t('form.preparing') : t('form.addPhoto')}</b>
                 <br />
-                <span className="fine">{t('form.photoNote')}</span>
+                <span className="fine">{t(photoOptional ? 'form.photoNoteOptional' : 'form.photoNote')}</span>
               </span>
             </button>
           )}

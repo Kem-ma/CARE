@@ -7,6 +7,7 @@ export const INCIDENT_TYPES = [
   'Child abuse',
   'Gender-based violence',
   'Femicide',
+  'Rape',
   'Underage marriage',
   'Theft',
   'Burglary',
@@ -15,6 +16,9 @@ export const INCIDENT_TYPES = [
 
 // Types that must include a guardian or next-of-kin phone number (FR-1.9).
 export const NEEDS_GUARDIAN = new Set(['Child abuse', 'Underage marriage', 'Kidnapping']);
+
+// Types where the photo may be left out (routing.py: photoOptional). Every other type needs one.
+export const PHOTO_OPTIONAL = new Set(['Theft']);
 
 // Types handled by MINPROFF. Their reporters aren't contacted unless they choose to be.
 export const MINPROFF_TYPES = new Set(['Child abuse', 'Gender-based violence', 'Femicide', 'Underage marriage']);

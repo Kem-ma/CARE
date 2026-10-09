@@ -8,7 +8,7 @@ import { mmss, useCountdown } from '../hooks/useCountdown';
 import { typeName, useI18n } from '../i18n';
 import { submitReport, uploadEvidence } from '../lib/api';
 import { errorText } from '../lib/errors';
-import { NEEDS_GUARDIAN, REGION } from '../lib/incidents';
+import { NEEDS_GUARDIAN, PHOTO_OPTIONAL, REGION } from '../lib/incidents';
 import { contactAllowed } from './ReportForm';
 
 // phase: 'review' | 'sending' | 'uploading' | 'upload-failed' | 'done'
@@ -27,14 +27,15 @@ export default function Preview() {
   const secondsLeft = useCountdown(phase === 'done' && recent?.reportId === result?.reportId ? recent?.deadline : null);
 
   // Nothing to review (for example after a page refresh): back to the form
+  const incomplete = !draft.type || (!draft.photo && !PHOTO_OPTIONAL.has(draft.type));
   useEffect(() => {
-    if (phase === 'review' && !result && (!draft.type || !draft.photo)) navigate('/report', { replace: true });
-  }, [phase, result, draft.type, draft.photo, navigate]);
+    if (phase === 'review' && !result && incomplete) navigate('/report', { replace: true });
+  }, [phase, result, incomplete, navigate]);
 
   async function sendEvidence(created) {
     setPhase('uploading');
     const jobs = [];
-    if (uploads.photo !== 'done') {
+    if (created.photoUpload && uploads.photo !== 'done') {
       jobs.push(['photo', uploadEvidence(created.photoUpload, evidence.current.photo, 'image/jpeg')]);
     }
     if (created.audioUpload && uploads.audio !== 'done') {
@@ -65,7 +66,7 @@ export default function Preview() {
     setPhase('sending');
 
     evidence.current = {
-      photo: draft.photo.blob,
+      photo: draft.photo?.blob ?? null,
       audio: draft.descType === 'voice' ? draft.audio : null,
     };
 
@@ -82,7 +83,7 @@ export default function Preview() {
         landmark: draft.landmark.trim() || null,
       },
       contactAllowed: contactAllowed(draft),
-      hasPhoto: true,
+      hasPhoto: Boolean(draft.photo),
       ...(NEEDS_GUARDIAN.has(draft.type) ? { guardianContact: draft.guardian.trim() } : {}),
     };
 
@@ -199,7 +200,7 @@ export default function Preview() {
     );
   }
 
-  if (!draft.type || !draft.photo) return null; // redirecting
+  if (incomplete) return null; // redirecting
 
   return (
     <div className="page">
@@ -246,7 +247,9 @@ export default function Preview() {
         </div>
         <div className="row">
           <span className="k">{t('prev.photo')}</span>
-          <span className="v"><img className="thumb" src={draft.photo.url} alt={t('prev.photoAlt')} /></span>
+          <span className="v">
+            {draft.photo ? <img className="thumb" src={draft.photo.url} alt={t('prev.photoAlt')} /> : t('prev.noPhoto')}
+          </span>
         </div>
         <div className="row">
           <span className="k">{t('prev.contact')}</span>
