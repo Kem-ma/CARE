@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../i18n';
 import { confirmNewPassword, confirmSignUp, forgotPassword, resendCode, signIn, signUp } from '../lib/auth';
 import { errorText, keyedError } from '../lib/errors';
+import { PasswordInput } from '../components/ui';
 
 // Only ever send people back to a page inside this app
 function safeNext(value) {
@@ -24,6 +25,7 @@ export default function SignIn() {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'verify' | 'forgot' | 'reset'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState(''); // typed again when choosing a password
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -59,9 +61,16 @@ export default function SignIn() {
     run(finishSignIn);
   };
 
+  // Choosing a password: both boxes must match before anything is sent
+  const mismatch = (mode === 'signup' || mode === 'reset') && confirm !== '' && confirm !== password;
+  const checkMatch = () => {
+    if (confirm !== password) throw keyedError('Passwords do not match', 'auth.mismatch');
+  };
+
   const onSignUp = (event) => {
     event.preventDefault();
     run(async () => {
+      checkMatch();
       await signUp(email, password);
       setNote({ key: 'auth.sentTo', params: { email: email.trim() } });
       setMode('verify');
@@ -91,6 +100,7 @@ export default function SignIn() {
       }
       setCode('');
       setPassword('');
+      setConfirm('');
       setNote({ key: 'auth.resetSent', params: { email: email.trim() } });
       setMode('reset');
     });
@@ -103,6 +113,7 @@ export default function SignIn() {
   const onReset = (event) => {
     event.preventDefault();
     run(async () => {
+      checkMatch();
       await confirmNewPassword(email, code, password);
       await finishSignIn();
     });
@@ -113,6 +124,7 @@ export default function SignIn() {
     setError(null);
     setNote(null);
     if (target === 'forgot' || target === 'signin') setPassword('');
+    setConfirm('');
   };
 
   const heading = {
@@ -124,6 +136,14 @@ export default function SignIn() {
     <div className="field">
       <label htmlFor="email">{t('auth.email')}</label>
       <input id="email" type="email" className="inp" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+    </div>
+  );
+
+  const confirmField = (
+    <div className="field">
+      <label htmlFor="confirm">{t('auth.confirmPassword')}</label>
+      <PasswordInput id="confirm" autoComplete="new-password" value={confirm} onChange={setConfirm} />
+      {mismatch && <div className="hint bad" role="alert">{t('auth.mismatch')}</div>}
     </div>
   );
 
@@ -164,9 +184,10 @@ export default function SignIn() {
           </div>
           <div className="field">
             <label htmlFor="password">{t('auth.newPassword')}</label>
-            <input id="password" type="password" className="inp" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <PasswordInput id="password" autoComplete="new-password" value={password} onChange={setPassword} />
             <div className="hint">{t('auth.passwordHint')}</div>
           </div>
+          {confirmField}
           <button className="btn primary wide" disabled={busy}>{busy ? t('auth.wait') : t('auth.resetBtn')}</button>
           <p className="auth-switch">
             {t('auth.didntGet')} <button type="button" onClick={sendResetCode}>{t('auth.resend')}</button>
@@ -179,7 +200,7 @@ export default function SignIn() {
           {emailField}
           <div className="field">
             <label htmlFor="password">{t('auth.password')}</label>
-            <input id="password" type="password" className="inp" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <PasswordInput id="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={setPassword} />
             {mode === 'signup' && <div className="hint">{t('auth.passwordHint')}</div>}
             {mode === 'signin' && (
               <div className="hint">
@@ -187,6 +208,7 @@ export default function SignIn() {
               </div>
             )}
           </div>
+          {mode === 'signup' && confirmField}
           <button className="btn primary wide" disabled={busy}>
             {busy ? t('auth.wait') : mode === 'signup' ? t('auth.createBtn') : t('auth.signin')}
           </button>

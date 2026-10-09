@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useI18n } from '../i18n';
 import { STATUS_CLASS, STATUS_STEP } from '../lib/incidents';
-import { CheckIcon, InfoIcon } from './icons';
+import { CheckIcon, EyeIcon, EyeOffIcon, InfoIcon } from './icons';
 
 export function Callout({ tone = 'info', children }) {
   return (
@@ -57,6 +58,23 @@ export function ErrorList({ title, items }) {
           <li key={item}>{item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+// A password box with an eye button, so people can check what they typed
+export function PasswordInput({ id, value, onChange, autoComplete }) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="pw">
+      <input id={id} type={shown ? 'text' : 'password'} className="inp" autoComplete={autoComplete}
+        autoCapitalize="none" autoCorrect="off" spellCheck={false}
+        value={value} onChange={(e) => onChange(e.target.value)} required />
+      <button type="button" className="pw-toggle" onClick={() => setShown(!shown)}
+        aria-label={t(shown ? 'auth.hidePassword' : 'auth.showPassword')} aria-pressed={shown}>
+        {shown ? <EyeOffIcon /> : <EyeIcon />}
+      </button>
     </div>
   );
 }

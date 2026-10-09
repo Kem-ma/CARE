@@ -4,7 +4,8 @@ import LanguageSwitch from '../../components/LanguageSwitch';
 import { isAdminConfigured } from '../../config';
 import { useI18n } from '../../i18n';
 import { completeNewPassword, signIn, submitTotp } from '../../lib/auth';
-import { errorText } from '../../lib/errors';
+import { errorText, keyedError } from '../../lib/errors';
+import { PasswordInput } from '../../components/ui';
 
 const TITLES = { signin: 'admin.signinTitle', 'new-password': 'admin.newPasswordTitle', totp: 'admin.totpTitle' };
 const SUBS = { signin: 'admin.signinSub', 'new-password': 'admin.newPasswordSub', totp: 'admin.totpSub' };
@@ -16,6 +17,7 @@ export default function AdminSignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -68,18 +70,29 @@ export default function AdminSignIn() {
             </div>
             <div className="field">
               <label htmlFor="password">{t('auth.password')}</label>
-              <input id="password" type="password" className="inp" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <PasswordInput id="password" autoComplete="current-password" value={password} onChange={setPassword} />
             </div>
             <button className="btn primary wide" disabled={busy || !isAdminConfigured}>{busy ? t('admin.signingIn') : t('auth.signin')}</button>
           </form>
         )}
 
         {step === 'new-password' && (
-          <form onSubmit={(e) => { e.preventDefault(); run(() => completeNewPassword(pending.current, newPassword)); }}>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            run(async () => {
+              if (confirm !== newPassword) throw keyedError('Passwords do not match', 'auth.mismatch');
+              return completeNewPassword(pending.current, newPassword);
+            });
+          }}>
             <div className="field">
               <label htmlFor="new">{t('admin.newPassword')}</label>
-              <input id="new" type="password" className="inp" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+              <PasswordInput id="new" autoComplete="new-password" value={newPassword} onChange={setNewPassword} />
               <div className="hint">{t('admin.newPasswordHint')}</div>
+            </div>
+            <div className="field">
+              <label htmlFor="confirm">{t('auth.confirmPassword')}</label>
+              <PasswordInput id="confirm" autoComplete="new-password" value={confirm} onChange={setConfirm} />
+              {confirm !== '' && confirm !== newPassword && <div className="hint bad" role="alert">{t('auth.mismatch')}</div>}
             </div>
             <button className="btn primary wide" disabled={busy}>{busy ? t('admin.saving') : t('admin.setBtn')}</button>
           </form>
