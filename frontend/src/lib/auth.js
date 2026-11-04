@@ -65,12 +65,12 @@ export function resendCode(email) {
   });
 }
 
-// ----- forgotten password (citizens) -----
+// ----- forgotten password (citizens and staff) -----
 
 // Cognito emails a code to the account's verified address.
-export function forgotPassword(email) {
+export function forgotPassword(email, kind = 'citizen') {
   return new Promise((resolve, reject) => {
-    makeUser('citizen', email).forgotPassword({
+    makeUser(kind, email).forgotPassword({
       onSuccess: resolve,
       onFailure: reject,
       inputVerificationCode: resolve,
@@ -78,9 +78,9 @@ export function forgotPassword(email) {
   });
 }
 
-export function confirmNewPassword(email, code, newPassword) {
+export function confirmNewPassword(email, code, newPassword, kind = 'citizen') {
   return new Promise((resolve, reject) => {
-    makeUser('citizen', email).confirmPassword(code.trim(), newPassword, {
+    makeUser(kind, email).confirmPassword(code.trim(), newPassword, {
       onSuccess: resolve,
       onFailure: reject,
     });

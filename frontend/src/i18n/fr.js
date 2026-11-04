@@ -401,6 +401,7 @@ export const fr = {
   'admin.newPasswordSub': "C'est votre première connexion. Choisissez un mot de passe que vous seul connaissez.",
   'admin.totpSub': "Saisissez le code à 6 chiffres de votre application d'authentification.",
   'admin.newPassword': 'Nouveau mot de passe',
+  'admin.forgotSub': "Saisissez votre e-mail professionnel et nous vous enverrons un code pour choisir un nouveau mot de passe.",
   'admin.newPasswordHint': 'Au moins 8 caractères, avec majuscules et minuscules, un chiffre et un symbole.',
   'admin.setBtn': 'Définir le mot de passe et continuer',
   'admin.saving': 'Enregistrement…',

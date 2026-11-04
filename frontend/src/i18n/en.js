@@ -401,6 +401,7 @@ export const en = {
   'admin.newPasswordSub': 'This is your first sign-in. Set a password only you know.',
   'admin.totpSub': 'Enter the 6-digit code from your authenticator app.',
   'admin.newPassword': 'New password',
+  'admin.forgotSub': 'Enter your staff email and we will send you a code to choose a new password.',
   'admin.newPasswordHint': 'At least 8 characters, with upper and lower case letters, a number and a symbol.',
   'admin.setBtn': 'Set password and continue',
   'admin.saving': 'Saving…',
