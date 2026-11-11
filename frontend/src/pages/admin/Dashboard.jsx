@@ -11,6 +11,7 @@ import { syncAlarms, unlockAudio } from '../../lib/alarm';
 import { getSession, sessionInfo, signOut } from '../../lib/auth';
 import { errorText } from '../../lib/errors';
 import { RINGS, formatTime, timeAgo, townOf } from '../../lib/incidents';
+import { coords, mapLink } from '../../lib/exif';
 import {
   AskReporter, DuplicateNotice, LinkInfo, MoreActions, PriorityPill, Timeline, teamName,
 } from '../../components/StaffTools';
@@ -387,6 +388,33 @@ export default function Dashboard() {
                     ? <img src={detail.evidence.photoUrl} alt={t('dash.photoAlt')} />
                     : <p className="fine">{t('dash.photoFail')}</p>}
               </div>
+
+              {(report.reporterLocation || report.photoTakenAt || report.photoLocation) && (
+                <>
+                  <div className="k lbl">{t('dash.sharedTitle')}</div>
+                  <div className="shared">
+                    {report.reporterLocation && (
+                      <p>
+                        <b>{t('dash.reporterLoc')}</b><br />
+                        <span className="mono">{coords(report.reporterLocation)}</span>
+                        {report.reporterLocation.accuracy !== undefined && <span className="fine"> ({t('dash.accuracy', { m: report.reporterLocation.accuracy })})</span>}
+                        {' · '}<a href={mapLink(report.reporterLocation)} target="_blank" rel="noreferrer">{t('dash.map')}</a>
+                      </p>
+                    )}
+                    {report.photoTakenAt && (
+                      <p><b>{t('dash.photoTaken')}</b><br />{formatTime(report.photoTakenAt, lang)}</p>
+                    )}
+                    {report.photoLocation && (
+                      <p>
+                        <b>{t('dash.photoPlace')}</b><br />
+                        <span className="mono">{coords(report.photoLocation)}</span>
+                        {' · '}<a href={mapLink(report.photoLocation)} target="_blank" rel="noreferrer">{t('dash.map')}</a>
+                      </p>
+                    )}
+                    <p className="fine">{t('dash.sharedNote')}</p>
+                  </div>
+                </>
+              )}
 
               <Acknowledgements report={report} />
 

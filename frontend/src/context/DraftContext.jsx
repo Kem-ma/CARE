@@ -14,6 +14,9 @@ const emptyDraft = {
   text: '',
   audio: null,      // { blob, mime, seconds, url }
   photo: null,      // { blob, url }
+  photoInfo: null,  // { takenAt, lat?, lng? } read from the photo before its hidden data is removed
+  sharePhotoInfo: false, // sent only if the reporter ticks the box
+  myLocation: null, // { lat, lng, accuracy } only if the reporter chose to share it
   contact: null,    // null = the default for the type; true | false once the reporter chooses
 };
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CameraIcon, MicIcon, StopIcon } from '../components/icons';
+import { coords, mapLink, readPhotoDetails } from '../lib/exif';
 import { Callout, ErrorList } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDraft } from '../context/DraftContext';
@@ -8,7 +9,7 @@ import { useRecorder } from '../hooks/useRecorder';
 import { typeName, useI18n } from '../i18n';
 import { errorText } from '../lib/errors';
 import { toJpeg } from '../lib/image';
-import { INCIDENT_TYPES, MINPROFF_TYPES, NEEDS_GUARDIAN, PHOTO_OPTIONAL, REGION, TOWNS, WHERE } from '../lib/incidents';
+import { INCIDENT_TYPES, MINPROFF_TYPES, NEEDS_GUARDIAN, PHOTO_OPTIONAL, REGION, TOWNS, WHERE, formatTime } from '../lib/incidents';
 
 const PHONE = /^[+0-9 ()-]{6,30}$/;
 
@@ -53,8 +54,10 @@ export default function ReportForm() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { draft, update } = useDraft();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [problems, setProblems] = useState([]); // translation keys
+  const [locating, setLocating] = useState(false);
+  const [locationProblem, setLocationProblem] = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState(null);
   const [audioError, setAudioError] = useState('');
@@ -79,15 +82,48 @@ export default function ReportForm() {
     setPhotoBusy(true);
     setPhotoError(null);
     try {
+      // Read the photo's date and place first: toJpeg() removes them from the file
+      const photoInfo = await readPhotoDetails(file);
       const blob = await toJpeg(file);
       if (draft.photo?.url) URL.revokeObjectURL(draft.photo.url);
-      update({ photo: { blob, url: URL.createObjectURL(blob) } });
+      update({ photo: { blob, url: URL.createObjectURL(blob) }, photoInfo, sharePhotoInfo: false });
     } catch (error) {
       setPhotoError(error);
     } finally {
       setPhotoBusy(false);
       event.target.value = '';
     }
+  }
+
+  // The reporter's own location, only when they tick the box. Nothing is read otherwise.
+  function toggleLocation(on) {
+    setLocationProblem('');
+    if (!on) {
+      update({ myLocation: null });
+      return;
+    }
+    if (!('geolocation' in navigator)) {
+      setLocationProblem('loc.unsupported');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+        update({
+          myLocation: {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: Math.round(position.coords.accuracy),
+          },
+        });
+      },
+      (error) => {
+        setLocating(false);
+        setLocationProblem(error.code === 1 ? 'loc.denied' : 'loc.unavailable');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   }
 
   function validate() {
@@ -224,6 +260,29 @@ export default function ReportForm() {
                 onChange={(e) => update({ landmark: e.target.value })}
               />
             </div>
+            <div className="field">
+              <label className="check">
+                <input
+                  id="share-location"
+                  type="checkbox"
+                  checked={Boolean(draft.myLocation)}
+                  disabled={locating}
+                  onChange={(e) => toggleLocation(e.target.checked)}
+                />
+                <span>
+                  {t('loc.share')}
+                  <span className="d">{t('loc.shareNote')}</span>
+                </span>
+              </label>
+              {locating && <p className="fine">{t('loc.finding')}</p>}
+              {draft.myLocation && (
+                <p className="fine">
+                  {t('loc.found', { coords: coords(draft.myLocation), m: draft.myLocation.accuracy })}{' '}
+                  <a href={mapLink(draft.myLocation)} target="_blank" rel="noreferrer">{t('loc.map')}</a>
+                </p>
+              )}
+              {locationProblem && <Callout tone="warn">{t(locationProblem)}</Callout>}
+            </div>
           </>
         )}
 
@@ -287,6 +346,24 @@ export default function ReportForm() {
             </button>
           )}
           {photoError && <Callout tone="warn">{errorText(photoError, t)}</Callout>}
+          {draft.photo && draft.photoInfo && (
+            <label className="check">
+              <input
+                id="share-photo-info"
+                type="checkbox"
+                checked={draft.sharePhotoInfo}
+                onChange={(e) => update({ sharePhotoInfo: e.target.checked })}
+              />
+              <span>
+                {t(draft.photoInfo.lat !== undefined ? 'photoInfo.sharePlace' : 'photoInfo.share')}
+                <span className="d">
+                  {draft.photoInfo.takenAt ? t('photoInfo.taken', { date: formatTime(draft.photoInfo.takenAt, lang) }) : t('photoInfo.noDate')}
+                  {draft.photoInfo.lat !== undefined && <>{' · '}<a href={mapLink(draft.photoInfo)} target="_blank" rel="noreferrer">{t('loc.map')}</a></>}
+                  <br />{t('photoInfo.note')}
+                </span>
+              </span>
+            </label>
+          )}
         </div>
 
         <label className="check">

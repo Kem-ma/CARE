@@ -8,7 +8,8 @@ import { mmss, useCountdown } from '../hooks/useCountdown';
 import { typeName, useI18n } from '../i18n';
 import { submitReport, uploadEvidence } from '../lib/api';
 import { errorText } from '../lib/errors';
-import { NEEDS_GUARDIAN, PHOTO_OPTIONAL, REGION } from '../lib/incidents';
+import { NEEDS_GUARDIAN, PHOTO_OPTIONAL, REGION, formatTime } from '../lib/incidents';
+import { coords, mapLink } from '../lib/exif';
 import { contactAllowed } from './ReportForm';
 
 // phase: 'review' | 'sending' | 'uploading' | 'upload-failed' | 'done'
@@ -16,7 +17,7 @@ export default function Preview() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { draft, reset, recent, setRecent } = useDraft();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [phase, setPhase] = useState('review');
   const [error, setError] = useState(null); // kept as an error object so it re-translates
   const [result, setResult] = useState(null);
@@ -84,6 +85,9 @@ export default function Preview() {
       },
       contactAllowed: contactAllowed(draft),
       hasPhoto: Boolean(draft.photo),
+      // Shared only when the reporter ticked the boxes on the form
+      ...(draft.myLocation ? { reporterLocation: draft.myLocation } : {}),
+      ...(draft.photo && draft.sharePhotoInfo && draft.photoInfo ? { photoMetadata: draft.photoInfo } : {}),
       ...(NEEDS_GUARDIAN.has(draft.type) ? { guardianContact: draft.guardian.trim() } : {}),
     };
 
@@ -251,6 +255,24 @@ export default function Preview() {
             {draft.photo ? <img className="thumb" src={draft.photo.url} alt={t('prev.photoAlt')} /> : t('prev.noPhoto')}
           </span>
         </div>
+        {draft.myLocation && (
+          <div className="row">
+            <span className="k">{t('prev.myLocation')}</span>
+            <span className="v">
+              {coords(draft.myLocation)} <span className="fine">({t('dash.accuracy', { m: draft.myLocation.accuracy })})</span>
+              <br /><a href={mapLink(draft.myLocation)} target="_blank" rel="noreferrer">{t('loc.map')}</a>
+            </span>
+          </div>
+        )}
+        {draft.photo && draft.sharePhotoInfo && draft.photoInfo && (
+          <div className="row">
+            <span className="k">{t('prev.photoInfo')}</span>
+            <span className="v">
+              {draft.photoInfo.takenAt ? t('photoInfo.taken', { date: formatTime(draft.photoInfo.takenAt, lang) }) : t('photoInfo.noDate')}
+              {draft.photoInfo.lat !== undefined && <><br />{coords(draft.photoInfo)} · <a href={mapLink(draft.photoInfo)} target="_blank" rel="noreferrer">{t('loc.map')}</a></>}
+            </span>
+          </div>
+        )}
         <div className="row">
           <span className="k">{t('prev.contact')}</span>
           <span className="v">{contactAllowed(draft) ? t('prev.contactYes') : t('prev.contactNo')}</span>
